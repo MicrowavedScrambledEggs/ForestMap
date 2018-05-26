@@ -1,5 +1,5 @@
 #put covertype data into a txt file and add directory into line below.
-covertype <- read.csv("H:/Part IV BE(Hons)/COMPSCI760/Project Resources/covtype.data/covertype.txt", header=FALSE)
+covertype <- read.csv("Project Resources/covtype.data/covtype.data", header=FALSE)
 library(randomForest)
 #number of variables
 mdim = 55
@@ -25,3 +25,4 @@ mtry = 5
   ndsize = 1
   cutoff <- 1:7
  output.Forest <- randomForest(covertype, ntree= jbt, mtry = 7)
+ 
