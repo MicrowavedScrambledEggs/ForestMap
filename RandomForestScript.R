@@ -36,5 +36,13 @@ mtry = 5
   #minnimum node size (1 works fine)
   ndsize = 1
   cutoff <- 1:7
- output.Forest <- randomForest(forestCoverType ~ ., data=covertype, ntree= jbt, mtry = 7)
+
+# Sampling to create a random training set of 200000 cases
+trainingSet = covertype[sample(nsample, 200000), ]
+
+# Putting the rest of the cases into a test set
+library(dplyr)
+testSet <- covertype %>% anti_join(trainingSet)
+
+output.Forest <- randomForest(forestCoverType ~ ., data=trainingSet, ntree= jbt, mtry = 7)
  
