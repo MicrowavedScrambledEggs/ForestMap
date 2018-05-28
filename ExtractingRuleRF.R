@@ -7,30 +7,36 @@ ruleExtraction <- function(rfobj, predictVarMat, classColName)
   # data without the class label
   X = predictVarMat[ , -which(names(predictVarMat) %in% c(classColName))]
   # class Label vector
-  classLab = subset(predictVarMat, select=c(classColName))
+  classLab = predictVarMat[, classColName]
   treeList <- RF2List(rfobj)
   # Setting ntree and maxdepth values to ensure rule set perfectly represents
   # raw rule set so we can do our own rule trimming. Need to check if 
   # ntree$maxdepth is actually how you get the depth of the deepest tree 
-  # Just set maxdepth to 100 for now
-  rawConditions <- extractRules(treeList, X, ntree = treeList$ntree, maxdepth = 100)
-  rawRules <- measureRule(rawConditions, X, classLab)
-  # need to know which tree each rule came from so know what oob data to 
-  # measure their accuracy on. Then ideally return a table with rules mapped
-  # to tree ids
+  # Just set maxdepth to 1000 for now
+  # Need to call it for each tree so can keep track of which rules come from which tree
+  nTree <- treeList$ntree
+  for(i in 1:nTree){
+    tempList <- treeList$list[i:nTree]
+    tempTreeList <- treeList
+    tempTreeList$list <- tempList
+    rawConditions <- extractRules(tempTreeList, X, ntree = 1, maxdepth = 1000)
+    rawRulesFromTree <- as.data.frame(getRuleMetric(rawConditions, X, classLab))
+    rawRulesFromTree$tree <- rep(i, nrow(rawRulesFromTree))
+    if(i==1) rawRules <- rawRulesFromTree
+    else rawRules <- rbind(rawRules, rawRulesFromTree)
+  }
   return(rawRules)
 }
 
-# oobData would ideally be a list of out of bag data sets where their 
-# position in the list corresponds to the tree id they're associated with
-ruleRefinement <- function(rawRules, oobData)
+ruleRefinement <- function(rawRules, rfobj, predictVarMat)
 {
   # Initialise weight of each rule to 1
   weightRules = as.data.frame(rawRules)
   weightRules$weight = rep(1, nrow(weightRules))
+  oobIndexList <- oobIndexToTreeList(rfobj$inbag)
   # add values to frame for ranking
-  weightRules$accuracy = apply(weightRules, 1, measureRuleAcc, oobData)
-  weightRules$coverage = apply(weightRules, 1, measureRuleCov, oobData)
+  weightRules$accuracy = apply(weightRules, 1, measureRuleAcc, oobIndexList, predictVarMat)
+  weightRules$coverage = apply(weightRules, 1, measureRuleCov, oobIndexList, predictVarMat)
   # ExtractingRuleRF also uses 'variable importance in tree' and 'variable
   # importance in rule' but lets not use thouse just yet as they are complex
   # to measure
@@ -40,11 +46,27 @@ ruleRefinement <- function(rawRules, oobData)
   # the rules look like
 }
 
-measureRuleAcc <- function(ruleRow, oobData)
+# Returns a list of vectors where each vector lists the row numbers of the OOB examples
+# in the data used to train the random forest (predictVarMat) for the tree whose row
+# number in a randomForest object's inbag matrix is the same as the vector's position 
+# in the list
+# Usage: oobCasesForTree2 <- trainingData[oobIndexToTreeList(rfobj$inbag)[2], ]
+oobIndexToTreeList <- function(inbagMat)
 {
-  # get the associated oobData set and measure
-  # the frequency of correct predictions
-  correctPredict = sapply(oobData[ruleRow["tree"]], testRule, ruleRow["rule"])
+  oobIndexList <- apply(inbagMat, 1, 
+                        function(x) as.numeric(colnames(which(sapply(x, function(y) any(x==0))))))
+}
+
+measureRuleAcc <- function(ruleRow, oobIndexList, predictVarMat)
+{
+  # get the associated oobData set
+  # treeid = ruleRow["tree"]
+  # oobDataIndex = rfobj$inbag[treeid, which(apply(rfobj$inbag[treeid,],2,function(x) any(x==0)))]
+  # oobDataIndex = as.numeric(colnames(oobDataIndex))
+  oobData = predictVarMat[oobIndexList[ruleRow["tree"]], ]
+  
+  # measure the frequency of correct predictions
+  correctPredict = sapply(oobData, testRule, ruleRow["rule"])
   freqCorrect = table(correctPredict)
   return(freqCorrect[names(freqCorrect)==1] / length(freqCorrect))
 }
@@ -65,9 +87,10 @@ testRule <- function(case, rule)
   # False positive and false negative, return 0 for incorrect
 }
 
-measureRuleCov <- function(ruleRow, oobData)
+measureRuleCov <- function(ruleRow, oobIndexList, predictVarMat)
 {
-  covered = sapply(oobData[ruleRow["tree"]], testRuleCov, ruleRow["rule"])
+  oobData = predictVarMat[oobIndexList[ruleRow["tree"]], ]
+  covered = sapply(oobData, testRuleCov, ruleRow["rule"])
   freqCovered = table(covered)
   return(freqCovered[names(freqCovered)==1] / length(freqCovered))
 }

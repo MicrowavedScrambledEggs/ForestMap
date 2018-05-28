@@ -48,7 +48,8 @@ set.seed(222)
 
  # ndsize = 1
  # cutoff <- 1:7
-output.Forest <- randomForest(forestCoverType ~ ., data=traindata, ntree = 500, mtry = 17)
+# Note from badi, Need the oob data for ExtractingRuleRF, so setting keep.inbag to true
+output.Forest <- randomForest(forestCoverType ~ ., data=traindata, ntree = 500, mtry = 17, keep.inbag= TRUE)
 #output.Forest <- randomForest(forestCoverType ~ ., data=traindata, ntree = 100, mtry = 17, maxcat = 1, look= 5 )
 print(output.Forest)
 #check confusions matrix
@@ -72,3 +73,6 @@ plot(output.Forest)
 
 #These trees are massive btw
 getTree(output.Forest,1,labelVar = TRUE)
+
+
+
