@@ -1,0 +1,128 @@
+# Modifying the inTrees functions to work for ExtractingRuleRF
+
+# Modified to also retun the rule's predictions and the tree the rule came from
+extractRulesHack <- function (treeList, X, ntree = 100, maxdepth = 6, random = FALSE, 
+                              digits = NULL) 
+{
+  if (is.numeric(digits)) 
+    digits <- as.integer(abs(digits))
+  levelX = list()
+  for (iX in 1:ncol(X)) levelX <- c(levelX, list(levels(X[, 
+                                                          iX])))
+  ntree = min(treeList$ntree, ntree)
+  allRulesList = list()
+  allRulesPredList = list()
+  allRulesTreeList = list()
+  for (iTree in 1:ntree) {
+    if (random == TRUE) {
+      max_length = sample(1:maxdepth, 1, replace = FALSE)
+    }
+    else {
+      max_length = maxdepth
+    }
+    rule = list()
+    count = 0
+    rowIx = 1
+    tree <- treeList$list[[iTree]]
+    if (nrow(tree) <= 1) 
+      next
+    ruleSet = vector("list", length(which(tree[, "status"] == -1)))
+    predSet = vector("list", length(which(tree[, "status"] == -1)))
+    res = treeVisitHack(tree, rowIx = rowIx, count, ruleSet, predSet, 
+                    rule, levelX, length = 0, max_length = max_length, 
+                    digits = digits)
+    allRulesList = c(allRulesList, res$ruleSet)
+    allRulesPredList = c(allRulesPredList, res$predSet)
+    allRulesTreeList = c(allRulesTreeList, rep(iTree, length(res$ruleSet)))
+  }
+  allRulesList <- allRulesList[!unlist(lapply(allRulesList, is.null))]
+  allRulesPredList <- allRulesPredList[!unlist(lapply(allRulesList, is.null))]
+  allRulesTreeList <- allRulesTreeList[!unlist(lapply(allRulesList, is.null))]
+  cat(paste(length(allRulesList), " rules (length<=", max_length, 
+            ") were extracted from the first ", ntree, " trees.", 
+            "\n", sep = ""))
+  rulesExec <- ruleList2Exec(X, allRulesList)
+  rulesExec <- cbind(rulesExec, allRulesPredList, allRulesTreeList)
+  colnames(rulesExec) <- c("condition", "prediction", "tree")
+  return(rulesExec)
+}
+
+# Modified to return the rule prediction
+treeVisitHack <- function (tree, rowIx, count, ruleSet, predSet, rule, levelX, length, 
+                           max_length, digits = NULL) 
+{
+  if (tree[rowIx, "status"] == -1 | length == max_length) {
+    count = count + 1
+    ruleSet[[count]] = rule
+    predSet[[count]] = tree[rowIx, "prediction"]
+    return(list(ruleSet = ruleSet, count = count, predSet = predSet))
+  }
+  xIx <- tree[rowIx, "split var"]
+  xValue <- tree[rowIx, "split point"]
+  if (is.integer(digits)) 
+    xValue <- round(tree[rowIx, "split point"], digits)
+  if (is.null(levelX[[xIx]])) {
+    lValue <- paste("X[,", xIx, "]<=", xValue, sep = "")
+    rValue <- paste("X[,", xIx, "]>", xValue, sep = "")
+  }
+  else {
+    xValue <- which(as.integer(intToBits(as.integer(xValue))) > 
+                      0)
+    lValue <- levelX[[xIx]][xValue]
+    rValue <- setdiff(levelX[[xIx]], lValue)
+  }
+  xValue <- NULL
+  ruleleft <- rule
+  if (length(ruleleft) == 0) {
+    ruleleft[[as.character(xIx)]] <- lValue
+  }
+  else {
+    if (as.character(xIx) %in% ls(ruleleft)) {
+      if (!is.null(levelX[[xIx]])) {
+        lValue <- intersect(ruleleft[[as.character(xIx)]], 
+                            lValue)
+        ruleleft[[as.character(xIx)]] <- lValue
+      }
+      else {
+        ruleleft[[as.character(xIx)]] <- paste(ruleleft[[as.character(xIx)]], 
+                                               "&", lValue)
+      }
+    }
+    else {
+      ruleleft[[as.character(xIx)]] <- lValue
+    }
+  }
+  ruleright <- rule
+  if (length(ruleright) == 0) {
+    ruleright[[as.character(xIx)]] <- rValue
+  }
+  else {
+    if (as.character(xIx) %in% ls(ruleright)) {
+      if (!is.null(levelX[[xIx]])) {
+        rValue <- intersect(ruleright[[as.character(xIx)]], 
+                            rValue)
+        ruleright[[as.character(xIx)]] <- rValue
+      }
+      else {
+        ruleright[[as.character(xIx)]] <- paste(ruleright[[as.character(xIx)]], 
+                                                "&", rValue)
+      }
+    }
+    else {
+      ruleright[[as.character(xIx)]] <- rValue
+    }
+  }
+  thisList = treeVisitHack(tree, tree[rowIx, "left daughter"], 
+                       count, ruleSet, predSet, ruleleft, levelX, length + 1, max_length, 
+                       digits)
+  ruleSet = thisList$ruleSet
+  count = thisList$count
+  predSet = thisList$predSet
+  thisList = treeVisitHack(tree, tree[rowIx, "right daughter"], 
+                       count, ruleSet, predSet, ruleright, levelX, length + 1, max_length, 
+                       digits)
+  ruleSet = thisList$ruleSet
+  count = thisList$count
+  predSet = thisList$predSet
+  return(list(ruleSet = ruleSet, count = count, predSet = predSet))
+}
