@@ -1,7 +1,9 @@
+library(inTrees)
+
 # Modifying the inTrees functions to work for ExtractingRuleRF
 
 # Modified to also retun the rule's predictions and the tree the rule came from
-extractRulesHack <- function (treeList, X, ntree = 100, maxdepth = 6, random = FALSE, 
+extractRulesHack <- function (treeList, X, classLab, ntree = 100, maxdepth = 6, random = FALSE, 
                               digits = NULL) 
 {
   if (is.numeric(digits)) 
@@ -37,6 +39,7 @@ extractRulesHack <- function (treeList, X, ntree = 100, maxdepth = 6, random = F
   }
   allRulesList <- allRulesList[!unlist(lapply(allRulesList, is.null))]
   allRulesPredList <- allRulesPredList[!unlist(lapply(allRulesList, is.null))]
+  allRulesPredList <- sapply(allRulesPredList, function(x) levels(classLab)[x])
   allRulesTreeList <- allRulesTreeList[!unlist(lapply(allRulesList, is.null))]
   cat(paste(length(allRulesList), " rules (length<=", max_length, 
             ") were extracted from the first ", ntree, " trees.", 
@@ -125,4 +128,55 @@ treeVisitHack <- function (tree, rowIx, count, ruleSet, predSet, rule, levelX, l
   count = thisList$count
   predSet = thisList$predSet
   return(list(ruleSet = ruleSet, count = count, predSet = predSet))
+}
+
+getRuleMetricHack <- function(ruleExec, X, target, oobIndexes)
+{
+  ruleMetric <- t(apply(ruleExec, 1, 
+                         measureRuleHack, X, target, oobIndexes))
+  dIx <- which(ruleMetric[, "len"] == "-1")
+  if (length(dIx) > 0) {
+    ruleMetric <- ruleMetric[-dIx, ]
+    print(paste(length(dIx), " paths are ignored.", sep = ""))
+  }
+  return(ruleMetric)
+}
+
+measureRuleHack <- function (ruleExec, X, target, oobIndexes) 
+{
+  len <- length(unlist(strsplit(ruleExec$condition, split = " & ")))
+  origRule <- ruleExec$condition
+  tree_id <- ruleExec$tree
+  ysMost <- ruleExec$prediction
+  ruleExec <- paste("which(", origRule, ")")
+  X <- X[unlist(oobIndexes[tree_id]), ]
+  ixMatch <- eval(parse(text = ruleExec))
+  metric_names <- c("len", "freq", "err", "condition", "pred", "tree", 
+                    "oobSize", "numMatches", "numTP", "numTN" )
+  
+  target <- target[unlist(oobIndexes[tree_id])]
+  
+  if (length(ixMatch) == 0) {
+    v <- c("-1", "-1", "-1", "", "", tree_id, length(target), "0", "0", "0")
+    names(v) <- metric_names
+    return(v)
+  }
+  
+  ys <- target[ixMatch]
+  no <- target[-ixMatch]
+  freq <- round(length(ys)/nrow(X), digits = 3)
+
+  true_positives <- sum(as.character(ys) == ysMost)
+  true_negatives <- sum(as.character(no) != ysMost)
+  false_positives <- length(ys) - true_positives
+  false_negatives <- length(no) - true_negatives
+  conf <- round((true_positives+true_negatives)/length(target), digits = 3)
+  err <- 1 - conf
+  
+  
+  rule <- origRule
+  v <- c(len, freq, err, rule, ysMost, tree_id, length(target), length(ys), 
+         true_positives, true_negatives)
+  names(v) <- metric_names
+  return(v)
 }

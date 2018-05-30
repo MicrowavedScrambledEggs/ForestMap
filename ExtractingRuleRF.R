@@ -1,3 +1,5 @@
+# Requires the functions from HackinginTrees.R
+
 library(inTrees)
 library(randomForest)
 
@@ -13,37 +15,28 @@ ruleExtraction <- function(rfobj, predictVarMat, classColName)
   # raw rule set so we can do our own rule trimming. 
   # Just set maxdepth to 1000 untill I know how to get the depth of the deepest tree
   nTree <- treeList$ntree
-  rawConditions <- as.data.frame(extractRulesHack(treeList, X, ntree = nTree, maxdepth = 1000))
+  rawConditions <- as.data.frame(extractRulesHack(treeList, X, classLab, ntree = nTree, 
+                                                  maxdepth = 1000))
   # TODO: Do a modified getRuleMetric to only look at oob data
-  rawRulesFromTree <- getRuleMetric(rawConditions, X, classLab)
-  # Remove redundant conditions from rules (easier to do it here)
-  rawRulesFromTree <- as.data.frame(pruneRule(rawRulesFromTree, X, classLab))
-  rawRulesFromTree$tree <- rep(i, nrow(rawRulesFromTree))
-  if(i==1) rawRules <- rawRulesFromTree
-  else rawRules <- rbind(rawRules, rawRulesFromTree)
+  # Get oob case indexes for each tree
+  oobIndexes <- oobIndexesFromEachTree(rfobj$inbag)
+  
+  rawRules <- getRuleMetricHack(rawConditions, X, classLab, oobIndexes)
 
   return(rawRules)
 }
 
-ruleRefinement <- function(rawRules, rfobj, predictVarMat, classColName)
+ruleRefinement <- function(rawRules)
 {
   # Initialise weight of each rule to 1
   weightRules = as.data.frame(rawRules)
   weightRules$weight = rep(1, nrow(weightRules))
-  oobGetTime <- Sys.time()
-  oobIndexList <- oobIndexToTreeList(rfobj$inbag)
-  cat("Time to get oob indexes", Sys.time() - oobGetTime, '\n')
-  # add values to frame for ranking
-  accuracyAllTime <- Sys.time() 
-  weightRules$accuracy = apply(weightRules, 1, measureRuleAcc, oobIndexList, 
-                               predictVarMat, classColName)
-  cat("Time to measure oob accuracy of all rules", Sys.time() - oobGetTime, '\n')
-  weightRules$coverage = apply(weightRules, 1, measureRuleCov, oobIndexList, predictVarMat)
+
   # ExtractingRuleRF also uses 'variable importance in tree' and 'variable
   # importance in rule' but lets not use thouse just yet as they are complex
   # to measure
   # rank rules by reordering dataframe
-  weightRules = weightRules[order(weightRules$accuracy, weightRules$coverage), ]
+  weightRules = weightRules[order(weightRules$err, weightRules$freq, decreasing = c(FALSE, TRUE), method = "radix"), ]
   # removing redundant rules
   
   return(weightRules)
@@ -53,8 +46,8 @@ ruleRefinement <- function(rawRules, rfobj, predictVarMat, classColName)
 # in the data used to train the random forest (predictVarMat) for the tree whose row
 # number in a randomForest object's inbag matrix is the same as the vector's position 
 # in the list
-# Usage: oobCasesForTree2 <- trainingData[unlist(oobIndexToTreeList(rfobj$inbag)[2]), ]
-oobIndexToTreeList <- function(inbagMat)
+# Usage: oobCasesForTree2 <- trainingData[unlist(oobIndexesFromEachTree(rfobj$inbag)[2]), ]
+oobIndexesFromEachTree <- function(inbagMat)
 {
   oobIndexList <- apply(inbagMat, 2, 
                         function(x) which(sapply(x, function(y) any(y==0))))
