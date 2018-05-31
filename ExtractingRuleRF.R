@@ -33,10 +33,12 @@ ruleRefinement <- function(rawRules)
   weightRules$weight = rep(1, nrow(weightRules))
 
   # ExtractingRuleRF also uses 'variable importance in tree' and 'variable
-  # importance in rule' but lets not use thouse just yet as they are complex
+  # importance in rule' but lets not use those just yet as they are complex
   # to measure
   # rank rules by reordering dataframe
-  weightRules = weightRules[order(weightRules$err, weightRules$freq, decreasing = c(FALSE, TRUE), method = "radix"), ]
+  weightRules = weightRules[order(-as.numeric(weightRules$precision), 
+                                  -as.numeric(weightRules$recall), weightRules$err, 
+                                  -as.numeric(weightRules$freq)), ]
   # removing redundant rules
   
   return(weightRules)

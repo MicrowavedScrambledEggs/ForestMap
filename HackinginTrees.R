@@ -39,6 +39,8 @@ extractRulesHack <- function (treeList, X, classLab, ntree = 100, maxdepth = 6, 
   }
   allRulesList <- allRulesList[!unlist(lapply(allRulesList, is.null))]
   allRulesPredList <- allRulesPredList[!unlist(lapply(allRulesList, is.null))]
+  # In the tree list the predictions are the number of the factor's level
+  # So need to convert to class names
   allRulesPredList <- sapply(allRulesPredList, function(x) levels(classLab)[x])
   allRulesTreeList <- allRulesTreeList[!unlist(lapply(allRulesList, is.null))]
   cat(paste(length(allRulesList), " rules (length<=", max_length, 
@@ -152,12 +154,14 @@ measureRuleHack <- function (ruleExec, X, target, oobIndexes)
   X <- X[unlist(oobIndexes[tree_id]), ]
   ixMatch <- eval(parse(text = ruleExec))
   metric_names <- c("len", "freq", "err", "condition", "pred", "tree", 
-                    "oobSize", "numMatches", "numTP", "numTN" )
+                    "oobSize", "numMatches", "numTP", "numTN", "precision",
+                    "recall", "f_score")
   
   target <- target[unlist(oobIndexes[tree_id])]
   
   if (length(ixMatch) == 0) {
-    v <- c("-1", "-1", "-1", "", "", tree_id, length(target), "0", "0", "0")
+    v <- c("-1", "-1", "-1", "", "", tree_id, length(target), "0", "0", "0",
+           "0", "0", "0")
     names(v) <- metric_names
     return(v)
   }
@@ -172,11 +176,14 @@ measureRuleHack <- function (ruleExec, X, target, oobIndexes)
   false_negatives <- length(no) - true_negatives
   conf <- round((true_positives+true_negatives)/length(target), digits = 3)
   err <- 1 - conf
-  
+  precision <- round(true_positives/length(ys), digits = 3)
+  recall <- round(true_positives/(true_positives+false_negatives), digits = 3)
+  if( true_positives == 0) f_score = 0
+  else f_score <- round(2*precision*recall/(precision+recall), digits = 3)
   
   rule <- origRule
   v <- c(len, freq, err, rule, ysMost, tree_id, length(target), length(ys), 
-         true_positives, true_negatives)
+         true_positives, true_negatives, precision, recall, f_score)
   names(v) <- metric_names
   return(v)
 }
