@@ -52,7 +52,7 @@ extractRulesHack <- function (treeList, X, classLab, ntree = 100, maxdepth = 6, 
   return(rulesExec)
 }
 
-# Modified to return the rule prediction
+# Modified to return the rule prediction and ignore redundant conditions
 treeVisitHack <- function (tree, rowIx, count, ruleSet, predSet, rule, levelX, length, 
                            max_length, digits = NULL) 
 {
@@ -71,12 +71,10 @@ treeVisitHack <- function (tree, rowIx, count, ruleSet, predSet, rule, levelX, l
     rValue <- paste("X[,", xIx, "]>", xValue, sep = "")
   }
   else {
-    xValue <- which(as.integer(intToBits(as.integer(xValue))) > 
-                      0)
+    xValue <- which(as.integer(intToBits(as.integer(xValue))) > 0)
     lValue <- levelX[[xIx]][xValue]
     rValue <- setdiff(levelX[[xIx]], lValue)
   }
-  xValue <- NULL
   ruleleft <- rule
   if (length(ruleleft) == 0) {
     ruleleft[[as.character(xIx)]] <- lValue
@@ -89,8 +87,24 @@ treeVisitHack <- function (tree, rowIx, count, ruleSet, predSet, rule, levelX, l
         ruleleft[[as.character(xIx)]] <- lValue
       }
       else {
-        ruleleft[[as.character(xIx)]] <- paste(ruleleft[[as.character(xIx)]], 
-                                               "&", lValue)
+        # Removing redundant conditions
+        if (grepl("<=", ruleleft[[as.character(xIx)]]) ) {
+          # Extract the current value for the condition on the attribute
+          cond <- ruleleft[[as.character(xIx)]]
+          match <- regexpr("<=\\s?-?\\d+(\\.\\d+)?", cond)
+          old_val <- as.numeric(substr(cond, match+2, match+attributes(match)$match.length-1))
+          if (is.na(xValue <= old_val)){
+            print("WHATT!!")
+          }
+          if (xValue <= old_val) {
+            # replace the value on the attribute
+            ruleleft[[as.character(xIx)]] <- gsub("<=\\s?-?\\d+(\\.\\d+)?", paste("<=", xValue), cond) 
+          }
+          # else leave ruleleft alone
+        }
+        else 
+          ruleleft[[as.character(xIx)]] <- paste(ruleleft[[as.character(xIx)]], 
+                                                 "&", lValue)
       }
     }
     else {
@@ -109,8 +123,21 @@ treeVisitHack <- function (tree, rowIx, count, ruleSet, predSet, rule, levelX, l
         ruleright[[as.character(xIx)]] <- rValue
       }
       else {
-        ruleright[[as.character(xIx)]] <- paste(ruleright[[as.character(xIx)]], 
-                                                "&", rValue)
+        # Removing redundant conditions
+        if (grepl(">", ruleright[[as.character(xIx)]]) ) {
+          # Extract the current value for the condition on the attribute
+          cond <- ruleright[[as.character(xIx)]]
+          match <- regexpr(">\\s?-?\\d+(\\.\\d+)?", cond)
+          old_val <- as.numeric(substr(cond, match+1, match+attributes(match)$match.length-1))
+          if (xValue > old_val) {
+            # replace the value on the attribute
+            ruleright[[as.character(xIx)]] <- gsub(">\\s?-?\\d+(\\.\\d+)?", paste(">", xValue), cond) 
+          }
+          # else leave ruleRight alone
+        }
+        else 
+          ruleright[[as.character(xIx)]] <- paste(ruleright[[as.character(xIx)]], 
+                                                  "&", rValue)
       }
     }
     else {
