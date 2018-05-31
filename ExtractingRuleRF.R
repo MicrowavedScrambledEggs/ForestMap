@@ -44,6 +44,15 @@ ruleRefinement <- function(rawRules)
   return(weightRules)
 }
 
+condAttriValMat <- function(condition) 
+{
+  conds <- unlist(strsplit(condition, "&"))
+  attris <- unlist(regmatches(condition, gregexpr("X\\[,\\d+\\](<=|>)", condition)))
+  matr <- t(rbind(conds, attris))
+  vals <- as.numeric(apply(matr, 1, function(a) gsub(a[2], "", a[1], fixed = TRUE)))
+  return(t(rbind(conds, attris, vals)))
+}
+
 # Returns a list of vectors where each vector lists the row numbers of the OOB examples
 # in the data used to train the random forest (predictVarMat) for the tree whose row
 # number in a randomForest object's inbag matrix is the same as the vector's position 
