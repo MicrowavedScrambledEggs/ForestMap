@@ -29,7 +29,7 @@ ruleExtraction <- function(rfobj, predictVarMat, classColName)
 ruleRefinement <- function(rawRules, predictVarMat)
 {
   # remove all rules with f score of 0
-  rawRules <- rawRules[rawRules[,'f_score'] != 0, ]
+  #rawRules <- rawRules[rawRules[,'f_score'] != 0, ]
   
   # removing redundant rules
   # Group rules by prediction and conditions on attributes 
@@ -39,7 +39,7 @@ ruleRefinement <- function(rawRules, predictVarMat)
   {
     condOneNo <- function(condStr, condition)
     {
-      num <- c(0,0,0,0)
+      num <- rep(0, ceiling(length(condStrings)*2/30))
       if (grepl(condStr, condition, fixed = TRUE))
       {
         matchNo <- match(condStr, condStrings)-1
@@ -73,8 +73,8 @@ ruleRefinement <- function(rawRules, predictVarMat)
       }
       # out of the rules with the same prediction and same operations on attributes
       # pick the highest ranked one
-      best <- toCompare[order(-as.numeric(toCompare$f_score),
-                              toCompare$err, -as.numeric(toCompare$freq))[1], 
+      best <- toCompare[order(-as.numeric(toCompare$f_score), toCompare$err, 
+                              -as.numeric(toCompare$freq))[1], 
                         -which(names(toCompare) %in% c('condNums'))]
       best$weight <- nrow(toCompare)
       if(is.null(reducedRules)) reducedRules <- best
@@ -88,7 +88,7 @@ ruleRefinement <- function(rawRules, predictVarMat)
   # to measure
   # rank rules by reordering dataframe
   reducedRules = reducedRules[order(-as.numeric(reducedRules$f_score), reducedRules$err, 
-                                  -as.numeric(reducedRules$freq)), ]
+                                    -as.numeric(reducedRules$freq)), ]
   return(reducedRules)
 }
 
@@ -151,9 +151,7 @@ measureRuleCov <- function(ruleRow, oobIndexList, predictVarMat)
   return(freqCovered[names(freqCovered)==1] / length(freqCovered))
 }
 
-# Will have to rewrite this once I know how what the hell extracted rules
-# look like and how to apply them
-testRuleCov <- function(case, rule)
+testRuleCov <- function(X, rule)
 {
   # return 1 if case satisfies all conditions of rule, regardless if rule 
   # says the same class. 0 if not
@@ -161,4 +159,26 @@ testRuleCov <- function(case, rule)
   return(0)
 }
 
+ruleSetPredict <- function(weightedRuleSet, testSet)
+{
+  votes <- matrix(0, nrow = nrow(testSet), 
+                  ncol = length(levels(weightedRuleSet$pred)))
+  colnames(votes) <- levels(weightedRuleSet$pred)
+  condChars <- as.character(weightedRuleSet$condition)
+  condChars <- paste0("which(", condChars, ")")
+  condToPred <- cbind(condChars, weightedRuleSet$pred, 
+                      weightedRuleSet$weight)
+  X <- testSet
+  matches <- sapply(condChars, function(v) eval(parse(text = v)))
+  
+  for(i in 1:nrow(condToPred)) {
+    match <- matches[[i]]
+    pred <- as.numeric(condToPred[i,2])
+    weight <- as.numeric(condToPred[i,3])
+    if(length(match) > 0){
+      votes[match, pred] <- votes[match, pred] + weight
+    }
+  }
 
+  return(apply(votes, 1, function(v) names(which.max(v))))
+}
