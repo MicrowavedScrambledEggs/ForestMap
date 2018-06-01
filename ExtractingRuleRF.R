@@ -26,22 +26,70 @@ ruleExtraction <- function(rfobj, predictVarMat, classColName)
   return(rawRules)
 }
 
-ruleRefinement <- function(rawRules)
+ruleRefinement <- function(rawRules, predictVarMat)
 {
-  # Initialise weight of each rule to 1
-  weightRules = as.data.frame(rawRules)
-  weightRules$weight = rep(1, nrow(weightRules))
+  # remove all rules with f score of 0
+  rawRules <- rawRules[rawRules[,'f_score'] != 0, ]
+  
+  # removing redundant rules
+  # Group rules by prediction and conditions on attributes 
+  condStrings <- paste0("X[,", 1:ncol(predictVarMat), "]<=")
+  condStrings <- c(condStrings, paste0("X[,", 1:ncol(predictVarMat), "]>"))
+  condno <- function(condition, condStrings)
+  {
+    condOneNo <- function(condStr, condition)
+    {
+      num <- c(0,0,0,0)
+      if (grepl(condStr, condition, fixed = TRUE))
+      {
+        matchNo <- match(condStr, condStrings)-1
+        num[floor(matchNo/30)+1] <- 2**(matchNo %% 30)
+      }
+      return(num)
+    }
+    condAllNo <- apply(sapply(condStrings, condOneNo, condition),1,sum)
+    toReturn <- paste0(intToBits(condAllNo), collapse = "")
+    return(toReturn)
+  }
+  reducedRules <- NULL
+  for(pred in levels(rawRules[,'pred']))
+  {
+    predRules <- rawRules[rawRules[, 'pred']==pred, ]
+    predRules[,'condNums'] <- sapply(predRules[, 'condition'], condno, condStrings)
+    predRules <- predRules[order(predRules[,'condNums']), ]
+    
+    toCompare <- NULL
+    for(i in 1:nrow(predRules))
+    {
+      if(is.null(toCompare))
+      {
+        toCompare <- predRules[i,]
+        next
+      }
+      if(toCompare[1,'condNums']== predRules[i,'condNums'])
+      {
+        toCompare <- rbind(toCompare, predRules[i,])
+        next
+      }
+      # out of the rules with the same prediction and same operations on attributes
+      # pick the highest ranked one
+      best <- toCompare[order(-as.numeric(toCompare$f_score),
+                              toCompare$err, -as.numeric(toCompare$freq))[1], 
+                        -which(names(toCompare) %in% c('condNums'))]
+      best$weight <- nrow(toCompare)
+      if(is.null(reducedRules)) reducedRules <- best
+      else reducedRules <- rbind(reducedRules, best)
+      toCompare <- predRules[i,]
+    }
+  }
 
   # ExtractingRuleRF also uses 'variable importance in tree' and 'variable
   # importance in rule' but lets not use those just yet as they are complex
   # to measure
   # rank rules by reordering dataframe
-  weightRules = weightRules[order(-as.numeric(weightRules$precision), 
-                                  -as.numeric(weightRules$recall), weightRules$err, 
-                                  -as.numeric(weightRules$freq)), ]
-  # removing redundant rules
-  
-  return(weightRules)
+  reducedRules = reducedRules[order(-as.numeric(reducedRules$f_score), reducedRules$err, 
+                                  -as.numeric(reducedRules$freq)), ]
+  return(reducedRules)
 }
 
 condAttriValMat <- function(condition) 
