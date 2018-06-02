@@ -25,37 +25,23 @@ ruleExtraction <- function(rfobj, predictVarMat, classColName)
 
 ruleRefinement <- function(rawRules, predictVarMat)
 {
-  # timeStart <- Sys.time() 
-  # numRules <- nrow(rawRules)
+  timeStart <- Sys.time()
+  numRules <- nrow(rawRules)
   rawRules <- as.data.frame(rawRules)
   # remove all rules with f score of 0
   #rawRules <- rawRules[rawRules[,'f_score'] != 0, ]
   
-  # removing redundant rules
-  # Build a string of 1s and 0s where each position represents the presence or absence
-  # of an attribute-operation combo in a rule condition, for each rule 
-  # Example: a "1" in the first character of the string means the rule has
-  #           "X[,1]<=" in its condition
-  condStrings <- paste0("X[,", 1:ncol(predictVarMat), "]<=")
-  condStrings <- c(condStrings, paste0("X[,", 1:ncol(predictVarMat), "]>"))
-  condno <- function(condition, condStrings)
-  {
-    condOneNo <- function(condStr, condition)
-    {
-      num <- rep(0, ceiling(length(condStrings)*2/30))
-      if (grepl(condStr, condition, fixed = TRUE))
-      {
-        matchNo <- match(condStr, condStrings)-1
-        num[floor(matchNo/30)+1] <- 2**(matchNo %% 30)
-      }
-      return(num)
-    }
-    condAllNo <- apply(sapply(condStrings, condOneNo, condition),1,sum)
-    toReturn <- paste0(intToBits(condAllNo), collapse = "")
-    return(toReturn)
-  }
   reducedRules <- NULL
-  rawRules <- cbind(rawRules, condNums = sapply(rawRules[, 'condition'], condno, condStrings))
+  # rawRules <- cbind(rawRules, condNums = sapply(rawRules[, 'condition'], condno, condStrings))
+  
+  condStr <- function(condition)
+  {
+    valueless <- gsub("\\s?-?\\d+\\.?\\d*?(\\s|$)", "", condition)
+    condList <- unlist(strsplit(valueless, '\\s?&\\s?'))
+    return(paste0(sort(condList), collapse = ""))
+  }
+  # create strings to show which attribute+operator (eg X[,1]<=) are in which conditions  
+  rawRules <- cbind(rawRules, condNums = sapply(rawRules[,'condition'], condStr))
   
   ## Variant 4: This is apparently the fastest way to do rule refinement
   
@@ -69,8 +55,8 @@ ruleRefinement <- function(rawRules, predictVarMat)
   reducedRules$weight <- apply(reducedRules,1, function(x) ruleWeights[x['pred'], x['condNums']])
   reducedRules <- reducedRules[, -which(names(reducedRules) %in% c('condNums'))]
   
-  # timeTaken <- Sys.time() - timeStart
-  # print(paste("Time taken with", numRules, "rules:", timeTaken))
+  timeTaken <- Sys.time() - timeStart
+  print(paste("Time taken with", numRules, "rules:", timeTaken))
   return(reducedRules)
 }
 
