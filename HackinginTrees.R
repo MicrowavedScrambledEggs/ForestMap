@@ -163,11 +163,13 @@ getRuleMetricHack <- function(ruleExec, X, target, oobIndexes)
 {
   ruleMetric <- t(apply(ruleExec, 1, 
                          measureRuleHack, X, target, oobIndexes))
-  dIx <- which(ruleMetric[, "len"] == "-1")
+  ###### Comment out this code if you want more rules ######
+  dIx <- which(ruleMetric[, "freq"] == "0")
   if (length(dIx) > 0) {
     ruleMetric <- ruleMetric[-dIx, ]
     print(paste(length(dIx), " paths are ignored.", sep = ""))
   }
+  ###########################################################
   return(ruleMetric)
 }
 
@@ -187,23 +189,31 @@ measureRuleHack <- function (ruleExec, X, target, oobIndexes)
   target <- target[unlist(oobIndexes[tree_id])]
   
   if (length(ixMatch) == 0) {
-    v <- c("-1", "-1", "-1", "", "", tree_id, length(target), "0", "0", "0",
-           "0", "0", "0")
-    names(v) <- metric_names
-    return(v)
+    ys <- NULL
+    no <- target
+    freq <- 0
+    true_positives <- 0
+    false_positives <- 0
+    precision <- 0
+  } else {
+    ys <- target[ixMatch]
+    no <- target[-ixMatch]
+    freq <- round(length(ys)/nrow(X), digits = 3)
+    
+    ## Something to try increasing rule set accuracy:
+    ## Replace the prediction from the tree with the class that has the most
+    ## cases in the OOB that satisfy the rule's conditions 
+    # ysMost <- names(which.max(table(ys)))
+    
+    true_positives <- sum(as.character(ys) == ysMost)
+    false_positives <- length(ys) - true_positives
+    precision <- round(true_positives/length(ys), digits = 3)
   }
-  
-  ys <- target[ixMatch]
-  no <- target[-ixMatch]
-  freq <- round(length(ys)/nrow(X), digits = 3)
 
-  true_positives <- sum(as.character(ys) == ysMost)
   true_negatives <- sum(as.character(no) != ysMost)
-  false_positives <- length(ys) - true_positives
   false_negatives <- length(no) - true_negatives
   conf <- round((true_positives+true_negatives)/length(target), digits = 3)
   err <- 1 - conf
-  precision <- round(true_positives/length(ys), digits = 3)
   recall <- round(true_positives/(true_positives+false_negatives), digits = 3)
   if( true_positives == 0) f_score = 0
   else f_score <- round(2*precision*recall/(precision+recall), digits = 3)
