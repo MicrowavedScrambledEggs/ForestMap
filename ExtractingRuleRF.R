@@ -1,8 +1,5 @@
 # Requires the functions from HackinginTrees.R
 
-library(inTrees)
-library(randomForest)
-
 # predictVarMat is the data used to train the RF
 ruleExtraction <- function(rfobj, predictVarMat, classColName)
 {
@@ -28,11 +25,17 @@ ruleExtraction <- function(rfobj, predictVarMat, classColName)
 
 ruleRefinement <- function(rawRules, predictVarMat)
 {
+  # timeStart <- Sys.time() 
+  # numRules <- nrow(rawRules)
+  rawRules <- as.data.frame(rawRules)
   # remove all rules with f score of 0
   #rawRules <- rawRules[rawRules[,'f_score'] != 0, ]
   
   # removing redundant rules
-  # Group rules by prediction and conditions on attributes 
+  # Build a string of 1s and 0s where each position represents the presence or absence
+  # of an attribute-operation combo in a rule condition, for each rule 
+  # Example: a "1" in the first character of the string means the rule has
+  #           "X[,1]<=" in its condition
   condStrings <- paste0("X[,", 1:ncol(predictVarMat), "]<=")
   condStrings <- c(condStrings, paste0("X[,", 1:ncol(predictVarMat), "]>"))
   condno <- function(condition, condStrings)
@@ -52,43 +55,22 @@ ruleRefinement <- function(rawRules, predictVarMat)
     return(toReturn)
   }
   reducedRules <- NULL
-  for(pred in levels(rawRules[,'pred']))
-  {
-    predRules <- rawRules[rawRules[, 'pred']==pred, ]
-    predRules[,'condNums'] <- sapply(predRules[, 'condition'], condno, condStrings)
-    predRules <- predRules[order(predRules[,'condNums']), ]
-    
-    toCompare <- NULL
-    for(i in 1:nrow(predRules))
-    {
-      if(is.null(toCompare))
-      {
-        toCompare <- predRules[i,]
-        next
-      }
-      if(toCompare[1,'condNums']== predRules[i,'condNums'])
-      {
-        toCompare <- rbind(toCompare, predRules[i,])
-        next
-      }
-      # out of the rules with the same prediction and same operations on attributes
-      # pick the highest ranked one
-      best <- toCompare[order(-as.numeric(toCompare$f_score), toCompare$err, 
-                              -as.numeric(toCompare$freq))[1], 
-                        -which(names(toCompare) %in% c('condNums'))]
-      best$weight <- nrow(toCompare)
-      if(is.null(reducedRules)) reducedRules <- best
-      else reducedRules <- rbind(reducedRules, best)
-      toCompare <- predRules[i,]
-    }
-  }
-
-  # ExtractingRuleRF also uses 'variable importance in tree' and 'variable
-  # importance in rule' but lets not use those just yet as they are complex
-  # to measure
+  rawRules <- cbind(rawRules, condNums = sapply(rawRules[, 'condition'], condno, condStrings))
+  
+  ## Variant 4: This is apparently the fastest way to do rule refinement
+  
+  ruleWeights <- table(rawRules$pred, rawRules$condNums)
   # rank rules by reordering dataframe
-  reducedRules = reducedRules[order(-as.numeric(reducedRules$f_score), reducedRules$err, 
-                                    -as.numeric(reducedRules$freq)), ]
+  rawRules = rawRules[order(-as.numeric(rawRules$f_score), rawRules$err,
+                                    -as.numeric(rawRules$freq)), ]
+  # Pick just the highest ranked one of each condNum prediction combo
+  reducedRules <- rawRules[row.names(unique(rawRules[,c("condNums", "pred")])), ]
+  #assign weights
+  reducedRules$weight <- apply(reducedRules,1, function(x) ruleWeights[x['pred'], x['condNums']])
+  reducedRules <- reducedRules[, -which(names(reducedRules) %in% c('condNums'))]
+  
+  # timeTaken <- Sys.time() - timeStart
+  # print(paste("Time taken with", numRules, "rules:", timeTaken))
   return(reducedRules)
 }
 
