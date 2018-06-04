@@ -47,7 +47,7 @@ for (A in 1:NROW(refMiniRules)) {
       testRuleCondition(trainMini[C,], refRuleConditions[[1]][1], refMiniRules[1,], "forestCoverType")
     }
 
-    # Table should 
+    # Table should have "a" in [1,1], "b" in [1,2], "c" in [2,1], and "d" in [2,2]
     contingencyTable <- matrix(c(a,c,b,d), nrow = 2, dimnames = list(Condition = c("True", "False"), Prediction = c("True", "False")))
 
     # Adding margines: a + b, c + d, a + c, b + d
