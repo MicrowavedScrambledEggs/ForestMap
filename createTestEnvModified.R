@@ -44,7 +44,7 @@ for (A in 1:NROW(refMiniRules)) {
 
     # Loop to test the condition on each data instance
     for (C in 1:NROW(trainMini)) {
-      testRuleCondition(trainMini[C,], refRuleConditions[[1]][1], refMiniRules[1,], "forestCoverType")
+      testRuleCondition(trainMini[C,], refRuleConditions[[A]][B], refMiniRules[A,], "forestCoverType")
     }
 
     # Table should have "a" in [1,1], "b" in [1,2], "c" in [2,1], and "d" in [2,2]
