@@ -26,30 +26,37 @@ refMiniRules <- ruleRefinement(miniRUles, trainMini)
 
 
 # Stuff for the Mc Nemar thing
-library(exact2x2)
 source("McNemar_FalsePos_falseNeg.r")
+library(exact2x2)
 
 # Splitting into individual conditions
 refRuleConditions <- sapply(strsplit(as.character(refMiniRules[,"condition"]),"&"),"[")
 
-# Need to be reset before testing with a new condition
-a <- 0
-b <- 0
-c <- 0
-d <- 0
+# Loop for each refined extracted rule
+for (A in 1:NROW(refMiniRules)) {
+  # Loop for each condition within a rule
+  for (B in 1:length(refRuleConditions[[A]])) {
+    # Need to be reset before testing with a new condition
+    a <- 0
+    b <- 0
+    c <- 0
+    d <- 0
 
-for (i in 1:NROW(trainMini)) {
-  testRuleCondition(trainMini[i,], refRuleConditions[[1]][1], refMiniRules[1,], "forestCoverType")
+    # Loop to test the condition on each data instance
+    for (C in 1:NROW(trainMini)) {
+      testRuleCondition(trainMini[C,], refRuleConditions[[1]][1], refMiniRules[1,], "forestCoverType")
+    }
+
+    # Table should 
+    contingencyTable <- matrix(c(a,c,b,d), nrow = 2, dimnames = list(Condition = c("True", "False"), Prediction = c("True", "False")))
+
+    # Adding margines: a + b, c + d, a + c, b + d
+    addmargins(contingencyTable)
+
+    # "Exact" Mc Nemar test
+    mcnemar.exact(contingencyTable)
+  }
 }
-
-# Table should 
-contingencyTable <- matrix(c(a,c,b,d), nrow = 2, dimnames = list(Condition = c("True", "False"), Prediction = c("True", "False")))
-
-# Adding margines: a + b, c + d, a + c, b + d
-addmargins(contingencyTable)
-
-# "Exact" Mc Nemar test
-mcnemar.exact(contingencyTable)
 
 # Null hypothesis: the specific rule condition and the rule conclusion ARE independant 
 # Alternate hypothesis: the specific rule condition and the rule concluse ARE NOT independant
