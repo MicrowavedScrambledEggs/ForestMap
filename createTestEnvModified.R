@@ -18,7 +18,7 @@ trainMini <- covertype[ind==1,]
 testMini <- covertype[ind==2,]
 library(randomForest)
 set.seed(222)
-miniForest <- randomForest(forestCoverType ~ ., data=trainMini, ntree = 50, mtry = 17, keep.inbag= TRUE)
+miniForest <- randomForest(forestCoverType ~ ., data=trainMini, ntree = 5, mtry = 3, keep.inbag= TRUE)
 source("ExtractingRuleRF.R")
 source("HackinginTrees.R")
 miniRUles <- ruleExtraction(miniForest, trainMini, "forestCoverType")
@@ -33,9 +33,13 @@ library(exact2x2)
 refRuleConditions <- sapply(strsplit(as.character(refMiniRules[,"condition"]),"&"),"[")
 
 # Loop for each refined extracted rule
+listOfResults <- vector(mode = "list", length = NROW(refMiniRules))
 for (A in 1:NROW(refMiniRules)) {
+  resultsForCondsOfRule <- vector(mode = "list", length = length(refRuleConditions[[A]]))
   # Loop for each condition within a rule
   for (B in 1:length(refRuleConditions[[A]])) {
+    
+    
     # Need to be reset before testing with a new condition
     a <- 0
     b <- 0
@@ -47,15 +51,16 @@ for (A in 1:NROW(refMiniRules)) {
       testRuleCondition(trainMini[C,], refRuleConditions[[A]][B], refMiniRules[A,], "forestCoverType")
     }
 
-    # Table should have "a" in [1,1], "b" in [1,2], "c" in [2,1], and "d" in [2,2]
+    # Table should 
     contingencyTable <- matrix(c(a,c,b,d), nrow = 2, dimnames = list(Condition = c("True", "False"), Prediction = c("True", "False")))
 
     # Adding margines: a + b, c + d, a + c, b + d
     addmargins(contingencyTable)
 
     # "Exact" Mc Nemar test
-    mcnemar.exact(contingencyTable)
+    resultsForCondsOfRule[B] <- list(mcnemar.exact(contingencyTable))
   }
+  listOfResults[A] <- resultsForCondsOfRule
 }
 
 # Null hypothesis: the specific rule condition and the rule conclusion ARE independant 
