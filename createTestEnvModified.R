@@ -32,6 +32,14 @@ library(exact2x2)
 # Splitting into individual conditions
 refRuleConditions <- sapply(strsplit(as.character(refMiniRules[,"condition"]),"&"),"[")
 
+#---------------------------------------------------------------------------------------------------------------------------------------
+# The below triple nested "for loop" will probably take too long
+#---------------------------------------------------------------------------------------------------------------------------------------
+# The test can be performed manually on each rule condition by following the steps after this behemoth 
+#---------------------------------------------------------------------------------------------------------------------------------------
+# IF TRIPLE FOR NO WORK, GO BACK-UP AT BOTTOM OF SCRIPT
+#---------------------------------------------------------------------------------------------------------------------------------------
+
 # Loop for each refined extracted rule
 listOfResults <- vector(mode = "list", length = NROW(refMiniRules))
 for (A in 1:NROW(refMiniRules)) {
@@ -66,3 +74,30 @@ for (A in 1:NROW(refMiniRules)) {
 # Null hypothesis: the specific rule condition and the rule conclusion ARE independant 
 # Alternate hypothesis: the specific rule condition and the rule concluse ARE NOT independant
 # If the "Mc Nemar's chi-squared vaule" is larger than the "p-value", reject the null hypothesis of independence 
+
+#---------------------------------------------------------------------------------------------------------------------------------------
+# BACKUP MANUAL TESTING ON EACH CONDITION SEPARATELY BECAUSE I CAN'T CODE IN R
+#---------------------------------------------------------------------------------------------------------------------------------------
+
+# A is the number of the rule you wish to access and test
+# B is the number of the the condition you wish to test within the rule A 
+
+  # Need to be reset before testing with a new condition
+  a <- 0
+  b <- 0
+  c <- 0
+  d <- 0
+
+  # Loop to test the condition on each data instance
+  for (i in 1:NROW(trainMini)) {
+    testRuleCondition(trainMini[i,], refRuleConditions[[A]][B], refMiniRules[A,], "forestCoverType")
+  }
+
+  # Table should 
+  contingencyTable <- matrix(c(a,c,b,d), nrow = 2, dimnames = list(Condition = c("True", "False"), Prediction = c("True", "False")))
+
+  # Adding margines: a + b, c + d, a + c, b + d
+  addmargins(contingencyTable)
+
+  # "Exact" Mc Nemar test
+  mcnemar.exact(contingencyTable)
